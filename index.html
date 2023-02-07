@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <link rel="stylesheet" href="./xterm.css" />
+    <script src="./xterm.js"></script>
+  </head>
+  <body>
+    <div id="terminal"></div>
+    <script>
+      function replacechar(str1, char1, index1) {
+        var result = "";
+        var i = 0;
+        for (let char of str1) {
+          if (i == index1) {
+            result += char1;
+          } else {
+            result += char;
+          }
+          i++;
+        }
+        return result;
+      }
+      var term = new Terminal({
+        rendererType: "canvas", //渲染类型
+        rows: 20, //行数
+        // cols: parseInt(_this.cols), // 不指定行数，自动回车后光标从下一行开始
+        convertEol: true, //启用时，光标将设置为下一行的开头
+        //   scrollback: 50, //终端中的回滚量
+        disableStdin: false, //是否应禁用输入。
+        cursorBlink: true, //光标闪烁
+        theme: {
+          lineHeight: 16,
+        },
+      });
+      // 将xterm渲染到前端
+      term.open(document.getElementById("terminal"));
+      // 记录命令
+      var cmd = "";
+      var terminalTitleTemplate = "您";
+      term.write(`\r\n${terminalTitleTemplate}: `);
+      // 监听键盘输入事件
+      let currentLineData = "";
+      // 历史行输入数据
+      let historyLineData = [];
+      let last = 0;
+      term.onData(async (key) => {
+        //enter键
+        if (key.charCodeAt(0) === 13) {
+          // 将行数据进行添加进去
+          if (currentLineData !== "") {
+            //将当前行数据传入历史命令数组中存储
+            historyLineData.push(currentLineData);
+            //定义当前行命令在整个数组中的位置
+            last = historyLineData.length;
+            console.log(currentLineData);
+            var result = await fetch("https://xqy-chat.azurewebsites.net/api/HttpTrigger1?code=B59YmRJ37bYLRI--6_p_ATqWwwYg3TqTHdM9qZZZv3IqAzFuwvL84Q==&id=0&time="+(new Date).getTime()+"&content="+currentLineData,{"method":"GET"})
+            var realresult = await result.text()
+            console.log(realresult.replace("/&nbsp;/g"," "))
+            term.write("\nAI:"+ realresult.replace(/&nbsp;/g," ")+"\n");
+        }
+          //当输入clear时清空终端内容
+          if (currentLineData === "clear") {
+            term.clear();
+          }
+
+          //在这可以进行发起请求将整行数据传入
+
+          // 清空当前行数据
+          currentLineData = "";
+
+          term.write(`\r\n${terminalTitleTemplate}: `);
+        } else if (key.charCodeAt(0) === 127) {
+          //删除键--》当前行偏移量x大于终端提示符所占位置时进行删除
+          if (term._core.buffer.x > terminalTitleTemplate.length + 3) {
+            currentLineData = currentLineData.slice(0, -1);
+            term.write("\b \b");
+          }
+        } else if (key === "\u001b[A") {
+          //up键的时候
+          let len = 0;
+          if (historyLineData.length > 0) {
+            len = historyLineData.length + 1;
+          }
+
+          if (last < len && last > 0) {
+            //当前行有数据的时候进行删除掉在进行渲染上存储的历史数据
+            for (let i = 0; i < currentLineData.length; i++) {
+              if (term._core.buffer.x > terminalTitleTemplate.length + 3) {
+                term.write("\b \b");
+              }
+            }
+            let text = historyLineData[last - 1];
+            term.write(text);
+            //重点，一定要记住存储当前行命令保证下次up或down时不会光标错乱覆盖终端提示符
+            currentLineData = text;
+
+            last--;
+          }
+        } else if (key === "\u001b[B") {
+          //down键
+          let lent = 0;
+          if (historyLineData.length > 0) {
+            lent = historyLineData.length - 1;
+          }
+          if (last < lent && last > -1) {
+            for (let i = 0; i < currentLineData.length; i++) {
+              if (term._core.buffer.x > terminalTitleTemplate.length + 3) {
+                term.write("\b \b");
+              }
+            }
+            let text = historyLineData[last + 1];
+            term.write(text);
+            currentLineData = text;
+            last++;
+          }
+        } else if (key === "\u001b[D") {
+          if (term._core.buffer.x > terminalTitleTemplate.length + 3) {
+            //term.write(key);
+          }
+        } else if (key === "\u001b[C") {
+          if (
+            term._core.buffer.x <
+            currentLineData.length + terminalTitleTemplate.length + 3
+          ) {
+            //term.write(key);
+          }
+        } else {
+          //啥也不做的时候就直接输入
+          if (
+            term._core.buffer.x <
+            currentLineData.length + terminalTitleTemplate.length + 3
+          ) {
+            currentLineData = replacechar(
+              currentLineData,
+              key,
+              term._core.buffer.x - terminalTitleTemplate.length - 3
+            );
+          } else {
+            currentLineData += key;
+          }
+          term.write(key);
+        }
+      });
+    </script>
+  </body>
+</html>
